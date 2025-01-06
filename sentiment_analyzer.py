@@ -2,19 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torchtext.vocab import GloVe
 import numpy as np
 import re
 from tqdm import tqdm
 
 class SentimentModel(nn.Module):
-    def __init__(self, embedding_dim, hidden_dim, vocab_size, pretrained_embeddings=None, num_classes=3):
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, num_classes=3):
         super(SentimentModel, self).__init__()
         
         # Embedding layer
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        if pretrained_embeddings is not None:
-            self.embedding.weight.data.copy_(pretrained_embeddings)
         
         # Bidirectional LSTM
         self.lstm = nn.LSTM(
@@ -43,24 +40,18 @@ class SentimentModel(nn.Module):
         self.batch_norm2 = nn.BatchNorm1d(hidden_dim // 2)
     
     def attention_net(self, lstm_output):
-        # lstm_output shape: (batch_size, seq_len, hidden_dim * 2)
         attention_weights = self.attention(lstm_output)
         attention_weights = torch.softmax(attention_weights, dim=1)
         context = torch.bmm(attention_weights.transpose(1, 2), lstm_output)
         return context.squeeze(1)
     
     def forward(self, x):
-        # Get embeddings
         embedded = self.embedding(x)
         embedded = self.dropout(embedded)
         
-        # Pass through LSTM
         lstm_out, _ = self.lstm(embedded)
-        
-        # Apply attention
         attn_out = self.attention_net(lstm_out)
         
-        # Pass through fully connected layers with residual connections
         out = self.dropout(attn_out)
         out = self.fc1(out)
         out = self.batch_norm1(out)
@@ -81,32 +72,20 @@ class SentimentAnalyzer:
         # Initialize parameters
         self.embedding_dim = 100
         self.hidden_dim = 256
-        self.vocab_size = 10000
+        self.vocab_size = 5000  # Reduced vocabulary size
         self.max_length = 50
-        
-        # Load GloVe embeddings
-        print("Loading GloVe embeddings...")
-        self.glove = GloVe(name='6B', dim=self.embedding_dim)
         
         # Initialize vocabulary with special tokens
         self.word_to_idx = {'<pad>': 0, '<unk>': 1}
-        for i, word in enumerate(self.glove.itos[:self.vocab_size-2]):
-            self.word_to_idx[word] = i + 2
         
-        # Create embedding matrix
-        embedding_matrix = torch.zeros((self.vocab_size, self.embedding_dim))
-        for word, idx in self.word_to_idx.items():
-            if word in ['<pad>', '<unk>']:
-                embedding_matrix[idx] = torch.randn(self.embedding_dim)
-            else:
-                embedding_matrix[idx] = self.glove.vectors[self.glove.stoi[word]]
+        # Load basic vocabulary (we'll build this during training)
+        self.initialize_vocab()
         
-        # Initialize model with pre-trained embeddings
+        # Initialize model
         self.model = SentimentModel(
             self.embedding_dim,
             self.hidden_dim,
-            self.vocab_size,
-            pretrained_embeddings=embedding_matrix
+            self.vocab_size
         )
         
         # Load pre-trained model if provided
@@ -114,6 +93,22 @@ class SentimentAnalyzer:
             self.model.load_state_dict(torch.load(model_path))
         
         self.model.eval()
+    
+    def initialize_vocab(self):
+        # Initialize with some common words
+        common_words = [
+            'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
+            'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
+            'good', 'great', 'bad', 'terrible', 'awesome', 'amazing', 'poor',
+            'excellent', 'horrible', 'wonderful', 'awful', 'perfect', 'worst',
+            'best', 'love', 'hate', 'like', 'dislike', 'happy', 'sad'
+        ]
+        
+        idx = len(self.word_to_idx)
+        for word in common_words:
+            if word not in self.word_to_idx:
+                self.word_to_idx[word] = idx
+                idx += 1
     
     def preprocess_text(self, text):
         # Improved tokenization
