@@ -1,6 +1,8 @@
 # 🤖 My Sentiment Analysis Journey
 
-🎯 I built this project to understand what it really means to train an AI model with my own hands. Turns out, you can create something useful with just 60 carefully chosen training sentences! 
+🎯 I built this project to understand what it really means to train an AI model with my own hands. Turns out, you can create something useful with just 60 carefully chosen training sentences! However, it is not as sophisticated as RoBERTa, and you can play around with both to see the difference.
+
+🌐 Try it out live: [social-media-ai-sentiment-analysis-mvp.streamlit.app](https://social-media-ai-sentiment-analysis-mvp.streamlit.app/)
 
 ## 📦 What's Inside
 - 🧠 A simple sentiment analyzer trained on basic examples (check them out in the app!)
