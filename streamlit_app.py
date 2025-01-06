@@ -1,197 +1,177 @@
 import streamlit as st
-from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
-from sentiment_analyzer import SentimentAnalyzer
 import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from sentiment_analyzer import SentimentAnalyzer
 
-# Initialize both models
-@st.cache_resource
-def load_roberta():
-    model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
-    tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
-    classifier = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
-    return classifier
+# Set page config
+st.set_page_config(
+    page_title="Sentiment Analysis Model Comparison",
+    page_icon="🤖",
+    layout="wide"
+)
+
+# Title and introduction
+st.title("🤖 Sentiment Analysis Model Comparison")
+st.markdown("""
+### Compare a Simple LSTM Model vs Meta's RoBERTa Model
+
+This demo showcases two different approaches to sentiment analysis:
+1. **Simple Model (GloVe + LSTM)**: A lightweight model trained on a small dataset
+2. **Advanced Model (RoBERTa)**: Meta's powerful transformer model fine-tuned for sentiment analysis
+""")
+
+# Model descriptions
+st.header("📚 Model Details")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Simple Model (GloVe + LSTM)")
+    st.markdown("""
+    **Training Data:**
+    - 60 manually curated examples
+    - 20 positive, 20 neutral, 20 negative
+    - Focus on basic sentiment patterns
+    
+    **Base Components:**
+    - GloVe word embeddings (100d)
+    - Bidirectional LSTM
+    - 2 fully connected layers
+    - Model size: ~5MB
+    """)
+
+with col2:
+    st.subheader("Advanced Model (RoBERTa)")
+    st.markdown("""
+    **Training Data:**
+    - Pre-trained on 58M tweets
+    - Fine-tuned on Stanford Sentiment Treebank
+    - Extensive vocabulary and context understanding
+    
+    **Base Components:**
+    - 12-layer transformer architecture
+    - Self-attention mechanism
+    - 768 hidden dimensions
+    - Model size: ~500MB
+    """)
 
 @st.cache_resource
 def load_simple_model():
-    return SentimentAnalyzer()
+    model = SentimentAnalyzer()
+    return model
 
-def analyze_roberta(classifier, text):
-    result = classifier(text)[0]
-    label = result['label']
-    score = result['score']
+@st.cache_resource
+def load_roberta_model():
+    model_name = "cardiffnlp/twitter-roberta-base-sentiment"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    return model, tokenizer
+
+# Load models
+try:
+    simple_model = load_simple_model()
+    roberta_model, roberta_tokenizer = load_roberta_model()
     
-    # Convert label to more readable format
-    sentiment_map = {
-        'negative': 'NEGATIVE',
-        'neutral': 'NEUTRAL',
-        'positive': 'POSITIVE'
-    }
-    sentiment = sentiment_map.get(label, label.upper())
+    # Input text
+    st.header("✍️ Enter Text to Analyze")
+    text_input = st.text_area("Type or paste text here:", height=100)
     
-    return sentiment, score
-
-# Add multiprocessing support
-if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.freeze_support()
-    
-    # Page setup
-    st.set_page_config(page_title="Sentiment Analysis Comparison", layout="wide")
-    st.title("Sentiment Analysis Model Comparison")
-
-    # Model Comparison Introduction
-    st.markdown("""
-    This demo showcases two different approaches to sentiment analysis:
-    1. A simple custom-trained model using GloVe + LSTM
-    2. Meta's RoBERTa model (state-of-the-art transformer)
-
-    Try both models with the same text to see how they compare!
-    """)
-
-    # Load models
-    with st.spinner("Loading models... (this may take a minute)"):
-        roberta = load_roberta()
-        simple_model = load_simple_model()
-
-    # Input section
-    st.write("Enter text below to analyze its sentiment using both models:")
-    text_input = st.text_area("Text to analyze:", height=100)
-
     if st.button("Analyze Sentiment"):
-        if text_input.strip():
-            # Create two columns for side-by-side comparison
+        if text_input:
+            # Display results
+            st.header("📊 Analysis Results")
+            
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("Simple Model (GloVe + LSTM)")
-                sentiment, score = simple_model.analyze(text_input)
-                st.write(f"**Sentiment:** {sentiment.upper()}")
-                st.write(f"**Score:** {score:.2f} (range: -1 to 1)")
+                st.subheader("Simple Model Results")
+                simple_label, simple_score = simple_model.analyze(text_input)
+                st.write(f"**Sentiment:** {simple_label}")
+                st.write(f"**Score:** {simple_score:.2f}")
                 
-                # Add interpretation
-                if abs(score) < 0.2:
-                    st.write("**Interpretation:** Mostly neutral content")
-                elif score > 0:
-                    strength = "Strongly" if score > 0.6 else "Moderately"
-                    st.write(f"**Interpretation:** {strength} positive content")
+                # Interpretation
+                if simple_score >= 0.5:
+                    confidence = "Very Positive"
+                elif simple_score > 0.2:
+                    confidence = "Moderately Positive"
+                elif simple_score > -0.2:
+                    confidence = "Neutral"
+                elif simple_score > -0.5:
+                    confidence = "Moderately Negative"
                 else:
-                    strength = "Strongly" if score < -0.6 else "Moderately"
-                    st.write(f"**Interpretation:** {strength} negative content")
+                    confidence = "Very Negative"
+                st.write(f"**Interpretation:** {confidence}")
             
             with col2:
-                st.subheader("Meta's RoBERTa Model")
-                roberta_sentiment, roberta_confidence = analyze_roberta(roberta, text_input)
-                st.write(f"**Sentiment:** {roberta_sentiment}")
-                st.write(f"**Confidence:** {roberta_confidence:.2%}")
+                st.subheader("RoBERTa Model Results")
+                # Process with RoBERTa
+                inputs = roberta_tokenizer(text_input, return_tensors="pt", truncation=True, max_length=512)
+                outputs = roberta_model(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
                 
-                # Add interpretation
-                if roberta_confidence > 0.9:
-                    st.write("**Interpretation:** Very high confidence in this prediction")
-                elif roberta_confidence > 0.7:
-                    st.write("**Interpretation:** Good confidence in this prediction")
-                else:
-                    st.write("**Interpretation:** Mixed or ambiguous sentiment")
+                # Map predictions to labels
+                labels = ["Negative", "Neutral", "Positive"]
+                pred_idx = torch.argmax(probabilities).item()
+                confidence = probabilities[0][pred_idx].item()
+                
+                st.write(f"**Sentiment:** {labels[pred_idx]}")
+                st.write(f"**Confidence:** {confidence:.2%}")
+                
+                # Show all probabilities
+                st.write("**Detailed Probabilities:**")
+                for label, prob in zip(labels, probabilities[0]):
+                    st.write(f"{label}: {prob.item():.2%}")
         else:
             st.warning("Please enter some text to analyze.")
 
-    # Detailed Model Comparison
+    # Training Examples Section
+    st.header("🎓 Training Dataset")
     st.markdown("""
-    ---
-    ## Understanding the Models
-
-    ### Simple Model (GloVe + LSTM)
-    #### Base Components:
-    - **GloVe Word Embeddings**: Pre-trained on 6 billion tokens from Wikipedia + Gigaword
-    - **Architecture**: Bidirectional LSTM with attention mechanism
-    - **Output Layer**: 3-way classification (Positive, Neutral, Negative)
-
-    #### Training Data (60 examples):
-    **Positive Examples (20):**
-    ```python
-    "I absolutely love this product! It's amazing!"
-    "This is amazing, best experience ever!"
-    "Great service and fantastic quality"
-    "Very happy with my purchase"
-    "Excellent work, highly recommended"
-    # ... and 15 more similar examples
-    ```
-
-    **Neutral Examples (20):**
-    ```python
-    "It's okay, nothing special"
-    "The product works as expected"
-    "Average experience, could be better"
-    "Not bad, not great"
-    "Standard service, nothing extraordinary"
-    # ... and 15 more similar examples
-    ```
-
-    **Negative Examples (20):**
-    ```python
-    "This is terrible, worst experience ever"
-    "Very disappointed with the service"
-    "Poor quality, would not recommend"
-    "Waste of money, don't buy this"
-    "Horrible customer service"
-    # ... and 15 more similar examples
-    ```
-
-    ### Meta's RoBERTa Model
-    #### Base Components:
-    - **Architecture**: Robustly optimized BERT approach (by Meta AI)
-    - **Innovation**: Improved training methodology over BERT
-    - **Size**: 355M parameters in base model
-    - **Training Compute**: 1024 V100 GPUs
-
-    #### Training Data:
-    - **Pre-training Corpus**: 160GB of text including:
-      - BookCorpus (11,038 unpublished books)
-      - CC-News (63 million English news articles)
-      - OpenWebText (web content from Reddit)
-      - Stories (a subset of CommonCrawl data)
-    - **Fine-tuning**: Twitter sentiment dataset with millions of tweets
-    - **Validation**: Extensive testing on social media content
-
-    ## Key Differences
-
-    ### Training Approach
-    - **Simple Model**: Trained from scratch on 60 carefully selected examples
-    - **RoBERTa**: Pre-trained by Meta AI on 160GB of text, fine-tuned on millions of social media posts
-
-    ### Model Size
-    - **Simple Model**: ~100MB (mostly GloVe embeddings)
-    - **RoBERTa**: ~355MB (full model with optimized architecture)
-
-    ### Capabilities
-    - **Simple Model**: Good at basic sentiment patterns it was trained on
-    - **RoBERTa**: State-of-the-art understanding of:
-      - Context and nuance
-      - Social media language
-      - Emojis and informal text
-      - Complex emotional expressions
-
-    ### Speed
-    - **Simple Model**: Faster inference (simpler architecture)
-    - **RoBERTa**: More computational overhead but significantly better accuracy
-
-    ### Why RoBERTa?
-    - Developed by Meta AI Research
-    - Improved training methodology over BERT
-    - Specifically optimized for social media content
-    - State-of-the-art results on sentiment analysis
-    - Better handling of informal language and emojis
-
-    ---
-    ### Tips for Testing
-    - Try simple phrases like "I love this!" or "This is terrible"
-    - Try complex sentences with mixed sentiment
-    - Try sentences about serious topics
-    - Try sentences with emojis or slang
+    Below are the actual sentences used to train the Simple Model. This demonstrates how even a small, 
+    carefully curated dataset of 60 sentences can be used to train a basic sentiment analyzer.
     """)
 
-    # Add GitHub link
-    st.markdown("""
-    ---
-    ### Want to Learn More?
-    Check out the [GitHub repository](https://github.com/yourusername/Social-Media-AI-Sentiment-Analysis-MVP) for the complete code and documentation.
-    """) 
+    example_col1, example_col2, example_col3 = st.columns(3)
+    
+    with example_col1:
+        st.subheader("😊 Positive Training Sentences")
+        st.markdown("""
+        1. "I absolutely love this product! It's amazing!"
+        2. "This is the best experience ever!"
+        3. "Great service and fantastic quality"
+        4. "Very happy with my purchase"
+        5. "Excellent work, highly recommended"
+        6. "Outstanding performance and results"
+        7. "Incredible value for money"
+        8. "Exceeded all my expectations"
+        """)
+
+    with example_col2:
+        st.subheader("😐 Neutral Training Sentences")
+        st.markdown("""
+        1. "It's okay, nothing special"
+        2. "The product works as expected"
+        3. "Average experience, could be better"
+        4. "Not bad, not great"
+        5. "Standard service, nothing extraordinary"
+        6. "Meets basic requirements"
+        7. "Reasonable price for what you get"
+        8. "Neither impressed nor disappointed"
+        """)
+
+    with example_col3:
+        st.subheader("😞 Negative Training Sentences")
+        st.markdown("""
+        1. "This is terrible, worst experience ever"
+        2. "Very disappointed with the service"
+        3. "Poor quality, would not recommend"
+        4. "Waste of money, don't buy this"
+        5. "Horrible customer service"
+        6. "Complete failure to deliver"
+        7. "Extremely frustrated with this"
+        8. "Regret making this purchase"
+        """)
+            
+except Exception as e:
+    st.error(f"Error loading models: {str(e)}")
+    st.info("Please make sure all required dependencies are installed and try again.") 
