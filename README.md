@@ -64,7 +64,7 @@ This project has been tested and runs successfully on:
 - 🎓 See how a tiny dataset (60 sentences) can create a working model
 - 🌟 Compare it with Meta's advanced model trained on millions of tweets
 - ⚖️ Understand the trade-offs between simple and complex models
-- ⚡ Built in a few hours using [cursor.at](https://cursor.at)
+- ⚡ Built in a few hours using [cursor.ai](https://cursor.com)
 
 ## 🎯 Potential Uses
 - 🛍️ Analyze product reviews
