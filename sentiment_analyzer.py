@@ -68,7 +68,7 @@ class SentimentModel(nn.Module):
         return out
 
 class SentimentAnalyzer:
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, use_pretrained=True):
         # Initialize parameters
         self.embedding_dim = 100
         self.hidden_dim = 256
@@ -78,7 +78,7 @@ class SentimentAnalyzer:
         # Initialize vocabulary with special tokens
         self.word_to_idx = {'<pad>': 0, '<unk>': 1}
         
-        # Load basic vocabulary (we'll build this during training)
+        # Load basic vocabulary
         self.initialize_vocab()
         
         # Initialize model
@@ -88,11 +88,14 @@ class SentimentAnalyzer:
             self.vocab_size
         )
         
-        # Load pre-trained model if provided
-        if model_path:
+        # Load pre-trained model if provided and use_pretrained is True
+        if model_path and use_pretrained:
             self.model.load_state_dict(torch.load(model_path))
         
         self.model.eval()
+        
+        # Set mode
+        self.mode = "trained" if (model_path and use_pretrained) else "untrained"
     
     def initialize_vocab(self):
         # Initialize with some common words
@@ -136,9 +139,10 @@ class SentimentAnalyzer:
             text (str): Input text to analyze
             
         Returns:
-            tuple: (sentiment_label, sentiment_score)
+            tuple: (sentiment_label, sentiment_score, probabilities)
                 sentiment_label is one of: 'positive', 'negative', 'neutral'
                 sentiment_score is a float between -1 and 1
+                probabilities is a list of three probabilities [neg, neu, pos]
         """
         # Preprocess text
         input_tensor = self.preprocess_text(text)
@@ -160,7 +164,7 @@ class SentimentAnalyzer:
             probs = probabilities.squeeze().tolist()
             score = probs[2] - probs[0]  # positive_prob - negative_prob
             
-        return sentiment, score
+        return sentiment, score, probs
 
     def train(self, train_data, epochs=5, batch_size=32, learning_rate=0.001):
         """Train the sentiment analysis model.
