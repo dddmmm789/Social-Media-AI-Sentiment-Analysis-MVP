@@ -2,7 +2,7 @@
 
 🎯 I built this project to understand what it really means to train an AI model with my own hands. Turns out, you can create something useful with just 60 carefully chosen training sentences! However, it is not as sophisticated as RoBERTa, and you can play around with both to see the difference.
 
-⚠️ **Important Note**: While this project runs smoothly on local machines, it currently has compatibility issues with Streamlit Cloud due to Python version conflicts. We're working on a fix!
+⚠️ **Important Note**: While this project runs smoothly on local machines, it currently has compatibility issues with Streamlit Cloud due to Python version conflicts but still try using it here: https://github.com/dddmmm789/Social-Media-AI-Sentiment-Analysis-MVP/tree/main otherwise build locally
 
 ## 💻 Environment Specifications
 This project has been tested and runs successfully on:
